@@ -59,6 +59,16 @@ void APClient::connectionHandler()
   }
 }
 
+void APClient::write(char c)
+{
+  esp8266->write(c);
+}
+
+void APClient::print(String s)
+{
+  esp8266->print(s);
+}
+
 String APClient::sendCommand(const String& msg, const int timeout, bool debug)
 {
   String response = "";
@@ -104,6 +114,23 @@ void APClient::render(const String& html)
   sendCommand(beginSendCmd, 5, false);
   sendCommand(httpHeader, 5, false);
   sendCommand(html, 10, false);
+  sendCommand(CMD_SEND_END, 5, false);
+}
+
+void APClient::render(void(*sendMsg)(void), int html_len)
+{
+  String httpHeader = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n";
+  httpHeader.concat("Content-Length: ");
+  httpHeader.concat(html_len);
+  httpHeader.concat("\r\n");
+  httpHeader.concat("Connection: close\r\n\r\n");
+
+  int len = httpHeader.length() + html_len;
+
+  String beginSendCmd = String(CMD_SEND_BEGIN) + "," + String(len);
+  sendCommand(beginSendCmd, 5, false);
+  sendCommand(httpHeader, 5, false);
+  sendMsg();
   sendCommand(CMD_SEND_END, 5, false);
 }
 

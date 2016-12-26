@@ -7,19 +7,21 @@ class Driver {
     int AIB;
     int BIA;
     int BIB;
-    int speed;
+    bool un;
   public:
     Driver(int AIA, int AIB, int BIA, int BIB);
     ~Driver();
     void init();
-    void drive(int dir, int speed);
+    void drive(int dir);
     int reverse(int dir);
     int getdir(char c);
     void stop();
-    void backward(int speed);
-    void forward(int speed);
-    void turnright(int speed);
-    void turnleft(int speed);
+    void backward();
+    void forward();
+    void turnright();
+    void turnleft();
+    bool active();
+    void setActive(bool un);
 };
 
 #endif

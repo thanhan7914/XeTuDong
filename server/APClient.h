@@ -18,9 +18,12 @@ class APClient {
     String sendCommand(const String& msg, const int timeout, bool debug);
     void setHandler(void (*hd)(const String& request));
     void render(const String& html);
+    void render(void(*sendMsg)(void), int html_len);
     void delay(unsigned long dl);
     void setLog(void (*log)(const String msg));
     void onRequest(void (*_onRequest)(const String& request));
+    void write(char c);
+    void print(String s);
 };
 
 #endif

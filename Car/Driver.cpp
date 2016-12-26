@@ -7,10 +7,10 @@ Driver::Driver(int AIA, int AIB, int BIA, int BIB)
   this->AIB = AIB;
   this->BIA = BIA;
   this->BIB = BIB;
-  this->speed = 255;
+  this->un  = false;
 }
 
-Driver::~Driver(){}
+Driver::~Driver() {}
 
 void Driver::init()
 {
@@ -20,19 +20,19 @@ void Driver::init()
   pinMode(BIB, OUTPUT);
 }
 
-void Driver::drive(int dir, int speed)
+void Driver::drive(int dir)
 {
   /* key direction
-   *  
-   *          3
-   *      1       2
-   *         4
-   */
 
-  if (dir == 1) turnleft(speed);
-  else if (dir == 2) turnright(speed);
-  else if (dir == 3) forward(speed);
-  else if (dir == 4) backward(speed);
+              3
+          1       2
+             4
+  */
+
+  if (dir == 1) turnleft();
+  else if (dir == 2) turnright();
+  else if (dir == 3) forward();
+  else if (dir == 4) backward();
   else stop();
 }
 
@@ -58,40 +58,56 @@ int Driver::getdir(char c)
 
 void Driver::stop()
 {
-  analogWrite(AIA, 0);
-  analogWrite(AIB, 0);
-  analogWrite(BIA, 0);
-  analogWrite(BIB, 0);
+  un = false;
+  digitalWrite(AIA, LOW);
+  digitalWrite(AIB, LOW);
+  digitalWrite(BIA, LOW);
+  digitalWrite(BIB, LOW);
 }
 
-void Driver::backward(int speed)
+void Driver::backward()
 {
-  analogWrite(AIA, 0);
-  analogWrite(AIB, speed);
-  analogWrite(BIA, 0);
-  analogWrite(BIB, speed);
+  un = true;
+  digitalWrite(AIA, LOW);
+  digitalWrite(AIB, HIGH);
+  digitalWrite(BIA, LOW);
+  digitalWrite(BIB, HIGH);
 }
 
-void Driver::forward(int speed)
+void Driver::forward()
 {
-  analogWrite(AIA, speed);
-  analogWrite(AIB, 0);
-  analogWrite(BIA, speed);
-  analogWrite(BIB, 0);
+  un = true;
+  digitalWrite(AIA, HIGH);
+  digitalWrite(AIB, LOW);
+  digitalWrite(BIA, HIGH);
+  digitalWrite(BIB, LOW);
 }
 
-void Driver::turnright(int speed)
+void Driver::turnright()
 {
-  analogWrite(AIA, speed);
-  analogWrite(AIB, 0);
-  analogWrite(BIA, 0);
-  analogWrite(BIB, speed);
+  un = true;
+  digitalWrite(AIA, HIGH);
+  digitalWrite(AIB, LOW);
+  digitalWrite(BIA, LOW);
+  digitalWrite(BIB, HIGH);
 }
 
-void Driver::turnleft(int speed)
+void Driver::turnleft()
 {
-  analogWrite(AIA, 0);
-  analogWrite(AIB, speed);
-  analogWrite(BIA, speed);
-  analogWrite(BIB, 0);
+  un = true;
+  digitalWrite(AIA, LOW);
+  digitalWrite(AIB, HIGH);
+  digitalWrite(BIA, HIGH);
+  digitalWrite(BIB, LOW);
 }
+
+void Driver::setActive(bool un)
+{
+  this->un = un;
+}
+
+bool Driver::active()
+{
+  return un;
+}
+
