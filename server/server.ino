@@ -43,7 +43,7 @@ void setup() {
   Serial.begin(9600);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
-  initWAP();
+//  initWAP();
   radio.initRF24();
   timer2.onTick(blink);
   timer2.setInterval(true);
@@ -64,7 +64,7 @@ void loop() {
   }
 
   RFWaitResponse();
-  esp8266.connectionHandler();
+//  esp8266.connectionHandler();
 
   //  if (state == 0)
   //  {

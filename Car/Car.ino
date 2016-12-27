@@ -2,10 +2,19 @@
 #include "Driver.h"
 #include "Timer.h"
 
+//radio
 #define RFNTRY 4
+
 #define LED_PIN 8
 #define LED_M A1
 #define LED_R A0
+
+//STATE
+#define EMPTY 0
+#define FOLLOWER 1
+#define COLLISION 2
+#define ACROSS 3
+#define PAUSE 10
 
 const int IFR_LEFT = A3;
 const int IFR_MIDDLE = A4;
@@ -19,31 +28,23 @@ uint8_t rx_data[2]; //receive 2 byte
 uint8_t tx_data = 0; //send 1 byte
 
 /*
-   state
-   0: nhan roi
-   1: di chuyen
+*   state
+*   0: nhan roi
+*   1: di chuyen
 */
 
-uint8_t state = 1;
+uint8_t state = FOLLOWER;
 /*
-   mark
-   0 chua gap
-   1 gap vat diem danh dau
+*   map
+*   a - > c - > d -> b -> a
+*   0     1     2    3    0
 */
-bool mark = false;
-/*
-   map
-   a - > c - > d -> b
-   0     1     2    3
-*/
-// huong + / -
-uint8_t flip = 1;
 int     dir = -1;
 uint8_t trace[5] = {0, 0, 0, 0, 0};
-uint8_t pos = 1; // o giua c d
+uint8_t pos = 0; // vi tri giua c d
 uint8_t itrace = 0;
 
-uint8_t target = 3;
+uint8_t target = 0;
 
 //100 vua du de vuot qua vach den
 Timer timer1(100);
@@ -57,6 +58,7 @@ void setup() {
   car.init();
   radio.initRF24();
   Serial.print("Done Setup");
+  sendData(pos);
 }
 
 void loop()
@@ -66,26 +68,28 @@ void loop()
 
   timer1.tick();
 
-  if (state == 1)
+  if (state == FOLLOWER)
   {
     LineFollower();
   }
-  else if (state == 2)
+  else if (state == COLLISION)
   {
     // vua cham vao vach den
-    if (!timer1.value()) car.drive(flip == 1 ? 3 : 4);
+    if (!timer1.value()) car.drive(3);
     else
     {
-      if (readSensor() != 7) state = 3;
-      else car.drive(flip == 1 ? 3 : 4);
+      if (readSensor() != 7) state = ACROSS;
+      else car.drive(3);
     }
   }
-  else if (state == 3)
+  else if (state == ACROSS)
   {
-    if(pos == target) state = 10;
-    else state = 1;
+    //gui du lieu vi tri
+    sendData(pos);
+    if (pos == target) state = PAUSE;
+    else state = FOLLOWER;
   }
-  else if(state == 10)
+  else if (state == PAUSE)
   {
     //pause
     pause();
@@ -100,7 +104,7 @@ void tracking(int p) {
     for (uint8_t i = 3; i >= 0; i--)
       trace[i] = trace[i + 1];
 
-    trace[5] = p;
+    trace[4] = p;
   }
 }
 
@@ -151,11 +155,11 @@ void LineFollower()
   if (right) digitalWrite(LED_R, HIGH);
   else digitalWrite(LED_R, LOW);
 
-  if (right && left && middle) across();
+  if (right && left && middle) collision();
   {
     if (right) dir = 2;
     else if (left) dir = 1;
-    else if (middle) dir = (flip == 1 ? 3 : 4);
+    else if (middle) dir = 3;
     else if (dir != 2 && dir != 1) dir = 1 + random(2);
 
     car.drive(dir);
@@ -170,12 +174,13 @@ uint8_t readSensor() {
   return (left << 2) | (middle << 1) | right;
 }
 
-void across() {
-  state = 2;
+void collision() {
+  state = COLLISION;
   timer1.start();
 
   tracking(pos);
-  pos += flip;
+  pos++;
+  if(pos > 3) pos = 0;
   digitalWrite(LED_R, LOW);
   digitalWrite(LED_M, LOW);
   digitalWrite(LED_PIN, LOW);
@@ -185,5 +190,11 @@ void pause()
 {
   dir = -1;
   car.stop();
+}
+
+bool sendData(uint8_t data)
+{
+  tx_data = data;
+  return radio.nRQ_sendCommand(RFNTRY, &tx_data, sizeof(uint8_t));
 }
 
