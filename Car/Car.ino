@@ -1,12 +1,15 @@
 #include "RFClient.h"
 #include "Timer.h"
 
+//pin define
+
 #define AIA 6
 #define AIB 9
 #define BIA 5
 #define BIB 3
 #define BUZZER 4
 #define LED_PIN 2
+#define LED_NRF 7
 
 //radio
 #define RFNTRY 4
@@ -72,12 +75,12 @@ uint8_t mode = EMPTY;
     0     1     2    3    0
 */
 int     dir = -1;
-uint8_t pos = 1; // vi tri giua c d
+uint8_t pos = 0; // vi tri giua c d
 
 uint8_t target = 1;
 
 //100 vua du de vuot qua vach den
-Timer timer1(80), timer2(5000), timer3(500);
+Timer timer1(80), timer2(5000), timer3(500), timer4(1500);
 
 void wait_room(uint8_t vol) {
   mode = ROLLBACK;
@@ -91,10 +94,15 @@ void buzzer(uint8_t v) {
   digitalWrite(LED_PIN, v);
 }
 
+void alert(uint8_t v) {
+  digitalWrite(LED_NRF, LOW);
+}
+
 void setup() {
   Serial.begin(9600);
   pinMode(BUZZER, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
+  pinMode(LED_NRF, OUTPUT);
 
   pinMode(AIA, OUTPUT);
   pinMode(AIB, OUTPUT);
@@ -104,6 +112,7 @@ void setup() {
   timer2.onTick(wait_room);
   timer3.setInterval(true);
   timer3.onTick(buzzer);
+  timer4.onTick(alert);
   Serial.print("Done Setup");
 }
 
@@ -114,6 +123,7 @@ void loop()
 
   timer1.tick();
   timer2.tick();
+  timer4.tick();
 
   if (timer2.value())
   {
@@ -240,6 +250,9 @@ void RFWaitReponse() {
     else tx_data = REFUSE;
 
     bool ok = radio.nRQ_sendCommand(RFNTRY, &tx_data, sizeof(uint8_t));
+    //alert
+    digitalWrite(LED_NRF, HIGH);
+    timer4.start();
   }
 }
 
@@ -254,7 +267,7 @@ void LineFollower()
     if (right) dir = 2;
     else if (left) dir = 1;
     else if (middle) dir = 3;
-    // else if (dir != 2 && dir != 1) dir = 1 + random(2);
+    else if (dir != 2 && dir != 1) dir = 1 + random(2);
 
     drive(dir);
   }

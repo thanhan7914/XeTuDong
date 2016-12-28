@@ -10,7 +10,7 @@
 #define SERVO_RIGHT 5
 
 //radio
-#define RFNTRY 4
+#define RFNTRY 8
 
 //State
 #define EMPTY 0
@@ -32,7 +32,6 @@
 Servo left, right;
 uint8_t angle_left[2] = {28, 42};
 uint8_t angle_right[2] = {158, 140};
-uint8_t cabin = 0;
 uint8_t gstop = 0;
 APClient esp8266(2, 4);
 RFClient radio(9, 10);
@@ -70,9 +69,9 @@ void writeLed(uint8_t vol) {
 }
 
 void rotate(uint8_t arg0) {
-  cabin = _current && 0xf;
-  //0 left
-  //1 right
+  uint8_t cabin = _current & 0xff;
+  //1 left
+  //2 right
 
   if (cabin == 1)
     left.write(left.read() + 1);
@@ -118,22 +117,25 @@ void loop() {
 
   RFWaitResponse();
   esp8266.connectionHandler();
-  if (state == OUTOF) return;
+  //if (state == OUTOF) return;
 
   timer3.tick();
   if (timer3.value())
   {
-    int g = 0;
+    uint8_t g = 0;
+    uint8_t cabin = _current & 0xff;
     if (cabin == 1)
       g = left.read();
     else if (cabin == 2)
       g = right.read();
 
-    if ((cabin == 1 && g >= gstop) || (cabin == 2 && g <= gstop))
+    if ((cabin == 1 && (g >= gstop || g > 90)) || (cabin == 2 && (g <= gstop || g < 90)))
     {
       timer3.pause();
       tx_data[0] = GETDONE;
       tx_data[1] = _current >> 8;
+      if(cabin == 1) left.write(0);
+      else if(cabin == 2) right.write(180);
       sendData();
       state = PAUSE;
       Serial.println("done ");
@@ -154,7 +156,6 @@ void loop() {
         _current = queue[nrq];
         //byte 0 chu lenh
         //byte 1 chua room.water
-        //lenh
         tx_data[0] = GWATER;
         tx_data[1] = 0;
         Serial.println("Goi nuoc");
@@ -193,10 +194,11 @@ void RFWaitResponse() {
     {
       case GTDONE:
         {
-          int f = (cabin == 1) ? water[0] : water[1];
-          int m = (cabin == 1) ? max_water[0] : max_water[1];
-          int h = f - m;
-          if (h >= 0)
+          uint8_t cabin = _current & 0xff;
+          uint8_t f = (cabin == 1) ? water[0] : water[1];
+          uint8_t m = (cabin == 1) ? max_water[0] : max_water[1];
+          uint8_t h = m - f - 1;
+          if (h >= 0 || h < 2)
             gstop = (cabin == 1) ? angle_left[h] : angle_right[h];
           else gstop = 90;
           timer3.start(true);
@@ -244,18 +246,14 @@ void requestHandler(const String& request)
     else if (request.indexOf("r2") != -1) tx_data[0] = 2;
     //loai nuoc
     if (request.indexOf("w1") != -1 && water[0] > 0)
-    {
       tx_data[1] = 1;
-      water[0]--;
-    }
     else if (request.indexOf("w2") != -1 && water[1] > 0)
-    {
       tx_data[1] = 2;
-      water[1]--;
-    }
 
     if (tx_data[0] > 0 && tx_data[1] > 0)
     {
+      if(tx_data[1] == 1) water[0]--;
+      if(tx_data[1] == 2) water[1]--;
       //ok
       stt_order = 1;
       queue[nrq] = tx_data[0] << 8;
