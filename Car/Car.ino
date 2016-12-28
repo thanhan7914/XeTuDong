@@ -6,6 +6,7 @@
 #define BIA 5
 #define BIB 3
 #define BUZZER 4
+#define LED_PIN 2
 
 //radio
 #define RFNTRY 4
@@ -86,11 +87,14 @@ void wait_room(uint8_t vol) {
 void buzzer(uint8_t v) {
   if (v) tone(BUZZER, 500);
   else noTone(BUZZER);
+
+  digitalWrite(LED_PIN, v);
 }
 
 void setup() {
   Serial.begin(9600);
   pinMode(BUZZER, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
 
   pinMode(AIA, OUTPUT);
   pinMode(AIB, OUTPUT);
@@ -115,7 +119,11 @@ void loop()
   {
     timer3.tick();
   }
-  else noTone(BUZZER);
+  else
+  {
+    noTone(BUZZER);
+    digitalWrite(LED_PIN, LOW);
+  }
 
   if (mode == EMPTY || mode == PAUSE)
   {

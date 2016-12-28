@@ -4,8 +4,13 @@
 #include "RFClient.h"
 #include "Timer.h"
 
-#define RFNTRY 4
+//define pin
 #define LED_PIN 8
+#define SERVO_LEFT 6
+#define SERVO_RIGHT 5
+
+//radio
+#define RFNTRY 4
 
 //State
 #define EMPTY 0
@@ -20,14 +25,14 @@
 #define OUTOF 10
 #define PAUSE 20
 
-//dinh nghi phan hoi
+//phan hoi
 #define REFUSE 2
 #define ACCEPT 1
 
 Servo left, right;
-uint8_t a_left[3] = {15, 28, 42};
-uint8_t a_right[2] = {158, 140};
-uint8_t room = 0;
+uint8_t angle_left[2] = {28, 42};
+uint8_t angle_right[2] = {158, 140};
+uint8_t cabin = 0;
 uint8_t gstop = 0;
 APClient esp8266(2, 4);
 RFClient radio(9, 10);
@@ -39,7 +44,8 @@ uint16_t queue[4] = {0, 0, 0, 0};
 uint8_t nrq = 0;
 
 uint8_t state = EMPTY;
-uint8_t water[2] = {3, 2};
+uint8_t max_water[2] = {2, 2};
+uint8_t water[2] = {2, 2};
 uint16_t _current = 0;
 
 /*
@@ -64,13 +70,13 @@ void writeLed(uint8_t vol) {
 }
 
 void rotate(uint8_t arg0) {
-  room = _current && 0xf;
+  cabin = _current && 0xf;
   //0 left
   //1 right
 
-  if(room == 1)
+  if (cabin == 1)
     left.write(left.read() + 1);
-  else if(room == 2)
+  else if (cabin == 2)
     right.write(right.read() - 1);
 }
 
@@ -78,19 +84,23 @@ void setup() {
   Serial.begin(9600);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
-  right.attach(5);
-  left.attach(6);
+  right.attach(SERVO_RIGHT);
+  left.attach(SERVO_LEFT);
   left.write(0);
   right.write(180);
+  //configuration wap
   initWAP();
+  //setup nrf
   radio.initRF24();
   timer2.onTick(writeLed);
   timer2.setInterval(true);
 
   timer3.onTick(rotate);
   timer3.setInterval(true);
-  
+
   Serial.println(getMemoryFree());
+
+  //nhap nhay led
   timer1.start(true);
   timer2.start(true);
 }
@@ -108,18 +118,18 @@ void loop() {
 
   RFWaitResponse();
   esp8266.connectionHandler();
-  if(state == OUTOF) return;
+  if (state == OUTOF) return;
 
   timer3.tick();
-  if(timer3.value())
+  if (timer3.value())
   {
     int g = 0;
-    if(room == 1)
+    if (cabin == 1)
       g = left.read();
-    else if(room == 2)
+    else if (cabin == 2)
       g = right.read();
 
-    if(g == gstop)
+    if ((cabin == 1 && g >= gstop) || (cabin == 2 && g <= gstop))
     {
       timer3.pause();
       tx_data[0] = GETDONE;
@@ -128,7 +138,7 @@ void loop() {
       state = PAUSE;
       Serial.println("done ");
       Serial.println(_current);
-      Serial.println(_current>>8);
+      Serial.println(_current >> 8);
     }
   }
 
@@ -137,6 +147,8 @@ void loop() {
     case EMPTY:
       if (nrq > 0)
       {
+        //neu co yeu cau nuoc
+        //gui yeu cau den xe
         //send request
         nrq--;
         _current = queue[nrq];
@@ -145,7 +157,7 @@ void loop() {
         //lenh
         tx_data[0] = GWATER;
         tx_data[1] = 0;
-        Serial.println("GOi nuoc");
+        Serial.println("Goi nuoc");
         bool ok = sendData();
 
         if (!ok)
@@ -181,7 +193,12 @@ void RFWaitResponse() {
     {
       case GTDONE:
         {
-          gstop = 90;
+          int f = (cabin == 1) ? water[0] : water[1];
+          int m = (cabin == 1) ? max_water[0] : max_water[1];
+          int h = f - m;
+          if (h >= 0)
+            gstop = (cabin == 1) ? angle_left[h] : angle_right[h];
+          else gstop = 90;
           timer3.start(true);
         }
         break;
@@ -213,13 +230,13 @@ void requestHandler(const String& request)
   Serial.print("Request: ");
   Serial.println(request);
 
-  if(water[0] == 0 && water[1] == 0)
+  if (water[0] == 0 && water[1] == 0)
   {
     state = OUTOF;
     return;
   }
 
-  if (nrq < 4 && water[0] > 0 && water[1] > 0 && !timer1.value())
+  if (nrq < 4 && (water[0] > 0 || water[1] > 0) && !timer1.value())
   {
     tx_data[0] = 0;
     tx_data[1] = 0;
