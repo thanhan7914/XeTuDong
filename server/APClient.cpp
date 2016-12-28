@@ -12,20 +12,20 @@ APClient::~APClient()
   delete esp8266;
 }
 
-void APClient::setupWAP()
+void APClient::setupWAP(const String ssid, const String password)
 {
   //Setup a Wireless Access Point
   //begin Serial
   esp8266->begin(115200);
-  this->delay(1000);
-  initESP8266();
+  this->sleep(1000);
+  this->initESP8266(ssid, password);
 }
 
-void APClient::initESP8266()
+void APClient::initESP8266(const String ssid, const String password)
 {
   sendCommand("AT+RST", 2000, false);
   sendCommand("AT+CWMODE=2", 2000, false);
-  sendCommand("AT+CWSAP=\"Auto Car\",\"Gameover\",1,4", 3000, false);
+  sendCommand("AT+CWSAP=\"" + ssid + "\",\"" + password + "\",1,4", 3000, false);
   sendCommand("AT+CIFSR", 1000, false);
   sendCommand("AT+CIPMUX=1", 1000, false);
   sendCommand("AT+CIPSERVER=1,80", 1000, false);
@@ -134,7 +134,7 @@ void APClient::render(void(*sendMsg)(void), int html_len)
   sendCommand(CMD_SEND_END, 5, false);
 }
 
-void APClient::delay(unsigned long dl)
+void APClient::sleep(unsigned long dl)
 {
   unsigned long tm = millis();
   while (millis() -  tm < dl);

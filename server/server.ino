@@ -1,4 +1,5 @@
 #include <avr/pgmspace.h>
+#include <Servo.h>
 #include "APClient.h"
 #include "RFClient.h"
 #include "Timer.h"
@@ -6,6 +7,19 @@
 #define RFNTRY 4
 #define LED_PIN 8
 
+//State
+#define EMPTY 0
+#define GWATER 1
+#define GETDONE 2
+#define GOTOWATER 3
+#define GOTOTARGET 4
+#define GTDONE 5
+
+//dinh nghi phan hoi
+#define REFUSE 2
+#define ACCEPT 1
+
+Servo left, right;
 APClient esp8266(2, 4);
 RFClient radio(9, 10);
 
@@ -15,8 +29,9 @@ uint8_t rx_data;
 uint16_t queue[4] = {0, 0, 0, 0};
 uint8_t nrq = 0;
 
-uint8_t state = 0;
+uint8_t state = EMPTY;
 uint8_t water[2] = {3, 2};
+uint16_t _current = 0;
 
 /*
    stt_order
@@ -35,7 +50,7 @@ int getMemoryFree() {
   return (int) SP - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 }
 
-void blink(uint8_t vol) {
+void writeLed(uint8_t vol) {
   digitalWrite(LED_PIN, vol);
 }
 
@@ -43,13 +58,17 @@ void setup() {
   Serial.begin(9600);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
-//  initWAP();
+  right.attach(5);
+  left.attach(6);
+  left.write(0);
+  right.write(180);
+  initWAP();
   radio.initRF24();
-  timer2.onTick(blink);
+  timer2.onTick(writeLed);
   timer2.setInterval(true);
+  Serial.println(getMemoryFree());
   timer1.start(true);
   timer2.start(true);
-  Serial.println(getMemoryFree());
 }
 
 void loop() {
@@ -60,34 +79,56 @@ void loop() {
   else
   {
     timer1.setValue(false);
-    blink(0);
+    writeLed(0);
   }
 
   RFWaitResponse();
-//  esp8266.connectionHandler();
+  esp8266.connectionHandler();
 
-  //  if (state == 0)
-  //  {
-  //    tx_data[0] = 9;
-  //    sendData();
-  //  }
+  switch (state)
+  {
+    case EMPTY:
+      if (nrq > 0)
+      {
+        //send request
+        nrq--;
+        _current = queue[nrq];
+        //byte 0 chu lenh
+        //byte 1 chua room.water
+        //lenh
+        tx_data[0] = GWATER;
+        rx_data[1] = 0;
+        bool ok = sendData();
+
+        if (!ok)
+        {
+          nrq++;
+          state = EMPTY;
+        }
+        else
+          state = GWATER;
+      }
+      break;
+    case GWATER:
+      break;
+  }
 }
 
 void RFWaitResponse() {
-    if (radio.available())
+  if (radio.available())
+  {
+    long timestamp = millis();
+    bool done = false;
+    while (!done)
     {
-      long timestamp = millis();
-      bool done = false;
-      while (!done)
-      {
-        done = radio.read(&rx_data, sizeof(uint8_t));
-        Serial.print("Data = ");
-        Serial.println(rx_data);
-      }
-
-      Serial.print("Time: ");
-      Serial.println(millis() - timestamp);
+      done = radio.read(&rx_data, sizeof(uint8_t));
+      Serial.print("Data = ");
+      Serial.println(rx_data);
     }
+
+    Serial.print("Time: ");
+    Serial.println(millis() - timestamp);
+  }
 }
 
 void initWAP()
@@ -95,7 +136,7 @@ void initWAP()
   esp8266.setLog(log);
   esp8266.setHandler(requestHandler);
   esp8266.onRequest(render);
-  esp8266.setupWAP();
+  esp8266.setupWAP("XeTuDong", "Gameover");
 }
 
 
@@ -116,8 +157,16 @@ void requestHandler(const String& request)
     if (request.indexOf("r1") != -1) tx_data[0] = 1;
     else if (request.indexOf("r2") != -1) tx_data[0] = 2;
     //loai nuoc
-    if (request.indexOf("w1") != -1) tx_data[1] = 1;
-    else if (request.indexOf("w2") != -1) tx_data[1] = 2;
+    if (request.indexOf("w1") != -1 && water[0] > 0)
+    {
+      tx_data[1] = 1;
+      water[0]--;
+    }
+    else if (request.indexOf("w2") != -1 && water[1] > 0)
+    {
+      tx_data[1] = 2;
+      water[1]--;
+    }
 
     if (tx_data[0] > 0 && tx_data[1] > 0)
     {
@@ -144,6 +193,7 @@ void render(const String& buffer)
 
 void index()
 {
+  //374 bytes
   showTmpl(PSTR("<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>He thong mang nuoc tu dong</title><style media='screen'>*{margin: 0;padding: 0}body{margin: 0 auto; text-align: center;}h1, h3{padding: 20px;}input{margin: auto 8px; padding-left: 8px;padding-right: 8px;}</style></head><body><h1>Xin chao! Ban muon loai nuoc gi?</h1><h3>"));
   //23 bytes
   if (stt_order == 1)
@@ -172,6 +222,7 @@ void index()
     }
   }
 
+  //392 bytes
   showTmpl(PSTR("</h3><h4><form action='/' method='get'><select name='r'> <option value='0'>--Chon phong cua ban--</option><option value='r1'>Room 1</option><option value='r2'>Room 2</option></select><select name='w'><option value='0'>--Chon loai nuoc uong--</option><option value='w1'>Lavie</option><option value='w2'>7UP Revive</option></select><input type='submit' value='Submit'></form></h4></body></html>"));
 }
 
@@ -182,7 +233,7 @@ void showTmpl(PGM_P s) {
 }
 
 bool sendData() {
-  bool ok = radio.nRQ_sendCommand(RFNTRY, &tx_data, sizeof(uint8_t));
+  bool ok = radio.nRQ_sendCommand(RFNTRY, &tx_data, sizeof(tx_data));
   Serial.print("Send request");
   Serial.print(tx_data[0]);
 

@@ -15,7 +15,7 @@ class Driver {
     void drive(int dir);
     int reverse(int dir);
     int getdir(char c);
-    void stop();
+    void pause();
     void backward();
     void forward();
     void turnright();

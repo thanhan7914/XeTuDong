@@ -31,12 +31,12 @@ bool RFClient::nRQ_sendCommand(uint8_t n, const void* buf, uint8_t len)
 {
   if (isRFListening) radio->stopListening();
   bool ok = false;
-  int _delay = 30;
+  int _delay = Timeout;
 
   while (n > 0)
   {
     ok = radio->write( buf, len);
-    printf("Sent response.\n\r");
+//    printf("Sent response.\n\r");
     n--;
     if (ok || n == 0) break;
     unsigned long tm = millis();

@@ -7,7 +7,6 @@
 
 class RFClient {
   private:
-    const int RF_TIMEOUT = 250;
     const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
     RF24* radio;
     bool isRFListening = false;
@@ -22,6 +21,7 @@ class RFClient {
     bool available();
     bool read(void* buf, uint8_t len);
     unsigned long getTimestamp() {return timestamp;}
+    int Timeout = 30;
 };
 
 #endif

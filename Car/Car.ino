@@ -15,34 +15,65 @@
 #define COLLISION 2
 #define ACROSS 3
 #define PAUSE 10
+#define WAITNRF 11
+
+//mode
+#define GWATER 1
+#define GETDONE 2
+#define GOTOWATER 3
+#define GOTOTARGET 4
+#define GTDONE 5
+#define TRDONE 6
+#define ROLLBACK 7
+#define DONETRANS 8
+
+//dinh nghi phan hoi
+#define REFUSE 2
+#define ACCEPT 1
+
+//so luong vi tri
+#define NODE 4
 
 const int IFR_LEFT = A3;
 const int IFR_MIDDLE = A4;
 const int IFR_RIGHT = A5;
 
 RFClient radio(9, 10);
-Driver car(7, 6, 5, 3);
+Driver car(6, A2, 5, 3);
 
 //data send or receive
-uint8_t rx_data[2]; //receive 2 byte
-uint8_t tx_data = 0; //send 1 byte
+//recieve 2 bytes -> room.water
+//send 1 byte -> state
+uint8_t rx_data[2];
+uint8_t tx_data = 0;
 
 /*
-*   state
-*   0: nhan roi
-*   1: di chuyen
+    state
+    EMPTY: nhan roi
+    FOLLOER: do duong
+    ...
 */
 
-uint8_t state = FOLLOWER;
+uint8_t state = EMPTY;
+
 /*
-*   map
-*   a - > c - > d -> b -> a
-*   0     1     2    3    0
+   mode
+   EMPTY 0
+   GWATER 1
+*/
+
+uint8_t mode = EMPTY;
+
+/*
+    map
+    a - > c - > d -> b -> a
+    0     1     2    3    0
 */
 int     dir = -1;
+//tracking
 uint8_t trace[5] = {0, 0, 0, 0, 0};
-uint8_t pos = 0; // vi tri giua c d
 uint8_t itrace = 0;
+uint8_t pos = 0; // vi tri giua c d
 
 uint8_t target = 0;
 
@@ -58,7 +89,6 @@ void setup() {
   car.init();
   radio.initRF24();
   Serial.print("Done Setup");
-  sendData(pos);
 }
 
 void loop()
@@ -68,31 +98,66 @@ void loop()
 
   timer1.tick();
 
-  if (state == FOLLOWER)
+  if (mode == EMPTY || mode == PAUSE) return;
+
+  switch (state)
   {
-    LineFollower();
-  }
-  else if (state == COLLISION)
-  {
-    // vua cham vao vach den
-    if (!timer1.value()) car.drive(3);
-    else
-    {
-      if (readSensor() != 7) state = ACROSS;
-      else car.drive(3);
-    }
-  }
-  else if (state == ACROSS)
-  {
-    //gui du lieu vi tri
-    sendData(pos);
-    if (pos == target) state = PAUSE;
-    else state = FOLLOWER;
-  }
-  else if (state == PAUSE)
-  {
-    //pause
-    pause();
+    case FOLLOWER:
+      LineFollower();
+      break;
+    case COLLISION:
+      {
+        // vua cham vao vach den
+        if (timer1.value()) car.drive(3);
+        else
+        {
+          if (readSensor() != 7) state = ACROSS;
+          else car.drive(3);
+        }
+      }
+      break;
+    case ACROSS:
+      {
+        dir = -1;
+        car.drive(dir);
+        car.pause();
+        state = WAITNRF;
+      }
+      break;
+    case WAITNRF:
+      {
+        if (pos == target)
+        {
+          if (mode == GOTOWATER)
+          {
+            sendData(GTDONE);
+            mode = PAUSE;
+            state = PAUSE;
+          }
+          else if (mode == GOTOTARGET)
+          {
+            sendData(TRDONE);
+            target = 0;
+            mode = ROLLBACK;
+            state = FOLLOWER;
+          }
+          else if (mode == ROLLBACK)
+          {
+            sendData(DONETRANS);
+            mode = EMPTY;
+            state = EMPTY;
+          }
+        }
+        else state = FOLLOWER;
+      }
+      break;
+    case PAUSE:
+      {
+        dir = -1;
+        car.drive(dir);
+        car.pause();
+      }
+      break;
   }
 }
 
@@ -116,27 +181,39 @@ uint8_t trace_index() {
 void RFWaitReponse() {
   if (radio.available())
   {
-    unsigned long timestamp = millis();
     bool done = false;
     while (!done)
-    {
       done = radio.read(&rx_data, sizeof(rx_data));
-      Serial.print("Data = ");
-      Serial.print(rx_data[0]);
-      Serial.print(" ");
-      Serial.println(rx_data[1]);
+
+    // neu mode khac empty -> refuse
+    if (mode != EMPTY) tx_data = REFUSE;
+    else
+    {
+      switch (rx_data[0])
+      {
+        case GWATER:
+          if (pos != 0) //0 la vi tri lay nuoc
+          {
+            //do line
+            target = 0;
+            state = FOLLOWER;
+            tx_data = GOTOWATER;
+            mode = GOTOWATER;
+          }
+          break;
+        case GETDONE:
+          {
+
+            target = rx_data[1] >> 4;
+            state = FOLLOWER;
+            tx_data = GOTOTARGET;
+            mode = GOTOTARGET;
+          }
+          break;
+      }
     }
 
-    Serial.print("T1: ");
-    Serial.print(millis() - timestamp);
-    Serial.print(" ");
-
     bool ok = radio.nRQ_sendCommand(RFNTRY, &tx_data, sizeof(uint8_t));
-
-    if (ok) Serial.print("ok ");
-    else Serial.print("fail ");
-    Serial.print(" Time: ");
-    Serial.println(millis() - timestamp);
   }
 }
 
@@ -157,9 +234,9 @@ void LineFollower()
 
   if (right && left && middle) collision();
   {
-    if (right) dir = 2;
+    if (middle) dir = 3;
     else if (left) dir = 1;
-    else if (middle) dir = 3;
+    else if (right) dir = 2;
     else if (dir != 2 && dir != 1) dir = 1 + random(2);
 
     car.drive(dir);
@@ -175,21 +252,16 @@ uint8_t readSensor() {
 }
 
 void collision() {
+  if (timer1.value()) return;
   state = COLLISION;
-  timer1.start();
+  timer1.start(true);
 
   tracking(pos);
   pos++;
-  if(pos > 3) pos = 0;
+  if (pos >= NODE) pos = 0;
   digitalWrite(LED_R, LOW);
   digitalWrite(LED_M, LOW);
   digitalWrite(LED_PIN, LOW);
-}
-
-void pause()
-{
-  dir = -1;
-  car.stop();
 }
 
 bool sendData(uint8_t data)

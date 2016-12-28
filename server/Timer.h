@@ -25,7 +25,7 @@ class Timer {
     }
     uint8_t tick() {
       if (!istart) return 0;
-      if (millis() - timestamp > delay)
+      if (millis() - timestamp > this->delay)
       {
         val = 255 - val;
         timestamp = millis();

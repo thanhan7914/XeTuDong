@@ -14,7 +14,7 @@ Driver::~Driver() {}
 
 void Driver::init()
 {
-  pinMode(AIA, OUTPUT);;
+  pinMode(AIA, OUTPUT);
   pinMode(AIB, OUTPUT);
   pinMode(BIA, OUTPUT);
   pinMode(BIB, OUTPUT);
@@ -23,17 +23,17 @@ void Driver::init()
 void Driver::drive(int dir)
 {
   /* key direction
-
-              3
-          1       2
-             4
+  *
+  *          3
+  *      1       2
+  *          4
   */
 
   if (dir == 1) turnleft();
   else if (dir == 2) turnright();
   else if (dir == 3) forward();
   else if (dir == 4) backward();
-  else stop();
+  else pause();
 }
 
 int Driver::reverse(int dir)
@@ -56,49 +56,49 @@ int Driver::getdir(char c)
   }
 }
 
-void Driver::stop()
+void Driver::pause()
 {
   un = false;
-  digitalWrite(AIA, LOW);
-  digitalWrite(AIB, LOW);
-  digitalWrite(BIA, LOW);
-  digitalWrite(BIB, LOW);
+  analogWrite(AIA, 0);
+  analogWrite(AIB, 0);
+  analogWrite(BIA, 0);
+  analogWrite(BIB, 0);
 }
 
 void Driver::backward()
 {
   un = true;
-  digitalWrite(AIA, LOW);
-  digitalWrite(AIB, HIGH);
-  digitalWrite(BIA, LOW);
-  digitalWrite(BIB, HIGH);
+  analogWrite(AIA, 0);
+  analogWrite(AIB, 255);
+  analogWrite(BIA, 0);
+  analogWrite(BIB, 255);
 }
 
 void Driver::forward()
 {
   un = true;
-  digitalWrite(AIA, HIGH);
-  digitalWrite(AIB, LOW);
-  digitalWrite(BIA, HIGH);
-  digitalWrite(BIB, LOW);
+  analogWrite(AIA, 255);
+  analogWrite(AIB, 0);
+  analogWrite(BIA, 255);
+  analogWrite(BIB, 0);
 }
 
 void Driver::turnright()
 {
   un = true;
-  digitalWrite(AIA, HIGH);
-  digitalWrite(AIB, LOW);
-  digitalWrite(BIA, LOW);
-  digitalWrite(BIB, HIGH);
+  analogWrite(AIA, 255);
+  analogWrite(AIB, 0);
+  analogWrite(BIA, 0);
+  analogWrite(BIB, 255);
 }
 
 void Driver::turnleft()
 {
   un = true;
-  digitalWrite(AIA, LOW);
-  digitalWrite(AIB, HIGH);
-  digitalWrite(BIA, HIGH);
-  digitalWrite(BIB, LOW);
+  analogWrite(AIA, 0);
+  analogWrite(AIB, 255);
+  analogWrite(BIA, 255);
+  analogWrite(BIB, 0);
 }
 
 void Driver::setActive(bool un)
