@@ -14,12 +14,21 @@
 #define GOTOWATER 3
 #define GOTOTARGET 4
 #define GTDONE 5
+#define TRDONE 6
+#define ROLLBACK 7
+#define DONETRANS 8
+#define OUTOF 10
+#define PAUSE 20
 
 //dinh nghi phan hoi
 #define REFUSE 2
 #define ACCEPT 1
 
 Servo left, right;
+uint8_t a_left[3] = {15, 28, 42};
+uint8_t a_right[2] = {158, 140};
+uint8_t room = 0;
+uint8_t gstop = 0;
 APClient esp8266(2, 4);
 RFClient radio(9, 10);
 
@@ -41,7 +50,7 @@ uint16_t _current = 0;
 */
 uint8_t stt_order = 0;
 
-Timer timer1(2000), timer2(100);
+Timer timer1(2000), timer2(100), timer3(100);
 
 int getMemoryFree() {
   extern int __heap_start;
@@ -52,6 +61,17 @@ int getMemoryFree() {
 
 void writeLed(uint8_t vol) {
   digitalWrite(LED_PIN, vol);
+}
+
+void rotate(uint8_t arg0) {
+  room = _current && 0xf;
+  //0 left
+  //1 right
+
+  if(room == 1)
+    left.write(left.read() + 1);
+  else if(room == 2)
+    right.write(right.read() - 1);
 }
 
 void setup() {
@@ -66,6 +86,10 @@ void setup() {
   radio.initRF24();
   timer2.onTick(writeLed);
   timer2.setInterval(true);
+
+  timer3.onTick(rotate);
+  timer3.setInterval(true);
+  
   Serial.println(getMemoryFree());
   timer1.start(true);
   timer2.start(true);
@@ -84,6 +108,29 @@ void loop() {
 
   RFWaitResponse();
   esp8266.connectionHandler();
+  if(state == OUTOF) return;
+
+  timer3.tick();
+  if(timer3.value())
+  {
+    int g = 0;
+    if(room == 1)
+      g = left.read();
+    else if(room == 2)
+      g = right.read();
+
+    if(g == gstop)
+    {
+      timer3.pause();
+      tx_data[0] = GETDONE;
+      tx_data[1] = _current >> 8;
+      sendData();
+      state = PAUSE;
+      Serial.println("done ");
+      Serial.println(_current);
+      Serial.println(_current>>8);
+    }
+  }
 
   switch (state)
   {
@@ -97,7 +144,8 @@ void loop() {
         //byte 1 chua room.water
         //lenh
         tx_data[0] = GWATER;
-        rx_data[1] = 0;
+        tx_data[1] = 0;
+        Serial.println("GOi nuoc");
         bool ok = sendData();
 
         if (!ok)
@@ -128,6 +176,21 @@ void RFWaitResponse() {
 
     Serial.print("Time: ");
     Serial.println(millis() - timestamp);
+
+    switch (rx_data)
+    {
+      case GTDONE:
+        {
+          gstop = 90;
+          timer3.start(true);
+        }
+        break;
+      case DONETRANS:
+        {
+          state = EMPTY;
+        }
+        break;
+    }
   }
 }
 
@@ -149,6 +212,12 @@ void requestHandler(const String& request)
 {
   Serial.print("Request: ");
   Serial.println(request);
+
+  if(water[0] == 0 && water[1] == 0)
+  {
+    state = OUTOF;
+    return;
+  }
 
   if (nrq < 4 && water[0] > 0 && water[1] > 0 && !timer1.value())
   {

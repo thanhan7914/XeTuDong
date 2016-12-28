@@ -23,12 +23,12 @@ void APClient::setupWAP(const String ssid, const String password)
 
 void APClient::initESP8266(const String ssid, const String password)
 {
-  sendCommand("AT+RST", 2000, false);
-  sendCommand("AT+CWMODE=2", 2000, false);
-  sendCommand("AT+CWSAP=\"" + ssid + "\",\"" + password + "\",1,4", 3000, false);
-  sendCommand("AT+CIFSR", 1000, false);
-  sendCommand("AT+CIPMUX=1", 1000, false);
-  sendCommand("AT+CIPSERVER=1,80", 1000, false);
+  sendCommand("AT+RST", 500, false);
+  sendCommand("AT+CWMODE=2", 500, false);
+  sendCommand("AT+CWSAP=\"" + ssid + "\",\"" + password + "\",1,4", 500, false);
+  sendCommand("AT+CIFSR", 100, false);
+  sendCommand("AT+CIPMUX=1", 100, false);
+  sendCommand("AT+CIPSERVER=1,80", 100, false);
 }
 
 void APClient::connectionHandler()

@@ -52,6 +52,10 @@ class Timer {
     void setValue(bool un) {
       val = un ? 255 : 0;
     }
+    void pause() {
+      this->istart = false;
+      this->val = 0;
+    }
 };
 
 #endif
